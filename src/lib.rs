@@ -27,10 +27,8 @@ pub use static_assertions;
 #[doc(hidden)]
 pub use crunchy::unroll;
 
-#[macro_use]
-#[rustfmt::skip]
-mod uint_macro;
-pub use uint_macro::*;
+#[doc(hidden)]
+pub use uint::macros::*;
 
 #[macro_use]
 #[rustfmt::skip]

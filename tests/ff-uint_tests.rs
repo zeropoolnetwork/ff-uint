@@ -9,15 +9,18 @@
 use core::convert::TryInto;
 use core::str::FromStr;
 use core::u64::MAX;
-use crunchy::unroll;
-use ff_uint::{construct_uint, overflowing, FromDecStrErr};
+use ff_uint::{construct_uint, overflowing, Uint};
 
 construct_uint! {
-	pub struct U256(4);
+	mod u256 {
+		pub struct U256(4);
+	}
 }
 
 construct_uint! {
-	pub struct U512(8);
+	mod u512 {
+		pub struct U512(8);
+	}
 }
 
 #[cfg(feature = "std")]
@@ -40,15 +43,7 @@ fn hash_impl_is_the_same_as_for_a_slice() {
 	assert_eq!(uint_hash, slice_hash);
 }
 
-#[test]
-fn u128_conversions() {
-	let mut a = U256::from(u128::max_value());
-	assert_eq!(a.low_u128(), u128::max_value());
-	a += 2u128;
-	assert_eq!(a.low_u128(), 1u128);
-	a -= 3u128;
-	assert_eq!(a.low_u128(), u128::max_value() - 1);
-}
+
 
 #[test]
 fn uint256_checked_ops() {
@@ -60,7 +55,6 @@ fn uint256_checked_ops() {
 	assert_eq!(U256::from(10).checked_pow(U256::from(1)), Some(U256::from(10)));
 	assert_eq!(U256::from(10).checked_pow(U256::from(2)), Some(U256::from(100)));
 	assert_eq!(U256::from(10).checked_pow(U256::from(3)), Some(U256::from(1000)));
-	assert_eq!(U256::from(10).checked_pow(U256::from(20)), Some(U256::exp10(20)));
 	assert_eq!(U256::from(2).checked_pow(U256::from(0x100)), None);
 	assert_eq!(U256::max_value().checked_pow(U256::from(2)), None);
 
@@ -220,15 +214,7 @@ fn uint256_bits_test() {
 	assert!(U256::from(10u8).bit(3));
 	assert!(!U256::from(10u8).bit(4));
 
-	//// byte check
-	assert_eq!(U256::from(10u8).byte(0), 10);
-	assert_eq!(U256::from(0xffu64).byte(0), 0xff);
-	assert_eq!(U256::from(0xffu64).byte(1), 0);
-	assert_eq!(U256::from(0x01ffu64).byte(0), 0xff);
-	assert_eq!(U256::from(0x01ffu64).byte(1), 0x1);
-	assert_eq!(U256([0u64, 0xfc, 0, 0]).byte(8), 0xfc);
-	assert_eq!(U256([0u64, 0, 0, u64::max_value()]).byte(31), 0xff);
-	assert_eq!(U256([0u64, 0, 0, (u64::max_value() >> 8) + 1]).byte(31), 0x01);
+
 }
 
 #[test]
@@ -271,7 +257,7 @@ fn uint256_arithmetic_test() {
 	let sub = overflowing!(incr.overflowing_sub(init));
 	assert_eq!(sub, U256([0x9F30411021524112u64, 0x0001BD5B7DDFBD5A, 0, 0]));
 	// Multiplication
-	let mult = sub * 300u32;
+	let mult = sub * 300u64;
 	assert_eq!(mult, U256([0x8C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0]));
 	// Division
 	assert_eq!(U256::from(105u8) / U256::from(5u8), U256::from(21u8));
@@ -313,39 +299,28 @@ fn uint256_extreme_bitshift_test() {
 	assert_eq!(add << 64, U256([0, 0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0]));
 }
 
-#[test]
-fn uint256_exp10() {
-	assert_eq!(U256::exp10(0), U256::from(1u64));
-	println!("\none: {:?}", U256::from(1u64));
-	println!("ten: {:?}", U256::from(10u64));
-	assert_eq!(U256::from(2u64) * U256::from(10u64), U256::from(20u64));
-	assert_eq!(U256::exp10(1), U256::from(10u64));
-	assert_eq!(U256::exp10(2), U256::from(100u64));
-	assert_eq!(U256::exp10(5), U256::from(100000u64));
-}
 
 #[test]
-fn uint256_mul32() {
-	assert_eq!(U256::from(0u64) * 2u32, U256::from(0u64));
-	assert_eq!(U256::from(1u64) * 2u32, U256::from(2u64));
-	assert_eq!(U256::from(10u64) * 2u32, U256::from(20u64));
-	assert_eq!(U256::from(10u64) * 5u32, U256::from(50u64));
-	assert_eq!(U256::from(1000u64) * 50u32, U256::from(50000u64));
+fn uint256_mul64() {
+	assert_eq!(U256::from(0u64) * 2u64, U256::from(0u64));
+	assert_eq!(U256::from(1u64) * 2u64, U256::from(2u64));
+	assert_eq!(U256::from(10u64) * 2u64, U256::from(20u64));
+	assert_eq!(U256::from(10u64) * 5u64, U256::from(50u64));
+	assert_eq!(U256::from(1000u64) * 50u64, U256::from(50000u64));
 }
 
 #[test]
 fn uint256_pow() {
-	assert_eq!(U256::from(10).pow(U256::from(0)), U256::from(1));
-	assert_eq!(U256::from(10).pow(U256::from(1)), U256::from(10));
-	assert_eq!(U256::from(10).pow(U256::from(2)), U256::from(100));
-	assert_eq!(U256::from(10).pow(U256::from(3)), U256::from(1000));
-	assert_eq!(U256::from(10).pow(U256::from(20)), U256::exp10(20));
+	assert_eq!(U256::from(10).wrapping_pow(U256::from(0)), U256::from(1));
+	assert_eq!(U256::from(10).wrapping_pow(U256::from(1)), U256::from(10));
+	assert_eq!(U256::from(10).wrapping_pow(U256::from(2)), U256::from(100));
+	assert_eq!(U256::from(10).wrapping_pow(U256::from(3)), U256::from(1000));
 }
 
 #[test]
 #[should_panic]
 fn uint256_pow_overflow_panic() {
-	U256::from(2).pow(U256::from(0x100));
+	U256::from(2).checked_pow(U256::from(0x100)).unwrap();
 }
 
 #[test]
@@ -389,7 +364,7 @@ fn uint256_overflowing_pow() {
 		U256::from(2).overflowing_pow(U256::from(0xff)),
 		(U256::from_str("57896044618658097711785492504343953926634992332820282019728792003956564819968").unwrap(), false)
 	);
-	assert_eq!(U256::from(2).overflowing_pow(U256::from(0x100)), (U256::zero(), true));
+	assert_eq!(U256::from(2).overflowing_pow(U256::from(0x100)), (U256::ZERO, true));
 }
 
 #[test]
@@ -411,7 +386,7 @@ fn uint256_overflowing_mul() {
 		U256::from_str("340282366920938463463374607431768211456")
 			.unwrap()
 			.overflowing_mul(U256::from_str("340282366920938463463374607431768211456").unwrap()),
-		(U256::zero(), true)
+		(U256::ZERO, true)
 	);
 }
 
@@ -504,11 +479,6 @@ fn uint256_rem() {
 fn uint256_from_str() {
 	assert_eq!(U256::from_str("10").unwrap(), U256::from(10u64));
 	assert_eq!(U256::from_str("1024").unwrap(), U256::from(1024u64));
-	assert_eq!(
-		U256::from_str("115792089237316195423570985008687907853269984665640564039457584007913129639936"),
-		Err(FromDecStrErr::InvalidLength)
-	);
-	assert_eq!(U256::from_str("0x11"), Err(FromDecStrErr::InvalidCharacter));
 }
 
 #[test]
@@ -946,7 +916,7 @@ fn from_big_endian() {
 	assert_eq!(U256::from(1), number);
 
 	let number = U256::from_big_endian(&[]);
-	assert_eq!(U256::zero(), number);
+	assert_eq!(U256::ZERO, number);
 
 	let number = U256::from_big_endian(&[1]);
 	assert_eq!(U256::from(1), number);
@@ -954,9 +924,8 @@ fn from_big_endian() {
 
 #[test]
 fn into_fixed_array() {
-	let expected: [u8; 32] =
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-	let ary: [u8; 32] = U256::from(1).to_be_bytes();
+	let expected = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+	let ary = U256::from(1).to_big_endian();
 	assert_eq!(ary, expected);
 }
 
@@ -964,10 +933,10 @@ fn into_fixed_array() {
 fn test_u256_from_fixed_array() {
 	let ary = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 123];
 	let num: U256 = U256::from_big_endian(&ary);
-	assert_eq!(num, U256::from(core::u64::MAX) + 1 + 123);
+	assert_eq!(num, U256::from(core::u64::MAX) + U256::from(1 + 123) );
 
 	let a_ref: &U256 = &U256::from_big_endian(&ary);
-	assert_eq!(a_ref, &(U256::from(core::u64::MAX) + 1 + 123));
+	assert_eq!(a_ref, &(U256::from(core::u64::MAX) + U256::from(1 + 123) ));
 }
 
 #[test]
@@ -1067,7 +1036,7 @@ pub mod laws {
 
 				quickcheck! {
 					fn identity_add(x: $uint_ty) -> bool {
-						x + $uint_ty::zero() == x
+						x + $uint_ty::ZERO == x
 					}
 				}
 
@@ -1085,19 +1054,19 @@ pub mod laws {
 
 				quickcheck! {
 					fn absorbing_rem(x: $uint_ty) -> bool {
-						x % $uint_ty::one() == $uint_ty::zero()
+						x % $uint_ty::one() == $uint_ty::ZERO
 					}
 				}
 
 				quickcheck! {
 					fn absorbing_sub(x: $uint_ty) -> bool {
-						x - x == $uint_ty::zero()
+						x - x == $uint_ty::ZERO
 					}
 				}
 
 				quickcheck! {
 					fn absorbing_mul(x: $uint_ty) -> bool {
-						x * $uint_ty::zero() == $uint_ty::zero()
+						x * $uint_ty::ZERO == $uint_ty::ZERO
 					}
 				}
 
