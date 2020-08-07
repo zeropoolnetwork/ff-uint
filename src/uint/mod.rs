@@ -10,10 +10,11 @@ macro_rules! construct_uint {
 			mod wrapped_mod {
 				use $crate::unroll;
 				use $crate::Uint;
+				use $crate::borsh::{BorshSerialize, BorshDeserialize};
 
 				#[repr(C)]
 				$(#[$attr])*
-				#[derive(Copy, Clone, Default)]
+				#[derive(Copy, Clone, Default, BorshSerialize, BorshDeserialize)]
 				pub struct $name (pub [u64; $n_words]);
 
 				#[inline]

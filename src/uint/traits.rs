@@ -50,6 +50,8 @@ pub trait Uint:
     std::convert::TryInto<i32> +
     std::convert::TryInto<i64> +
     std::convert::TryInto<i128> +
+    crate::borsh::BorshSerialize +
+    crate::borsh::BorshDeserialize
 {
 	type Inner: AsMut<[u64]> + AsRef<[u64]> + Copy + Clone + Default + Sized;
 
@@ -70,11 +72,6 @@ pub trait Uint:
     fn is_odd(&self) -> bool {
         self.bit(0)
     }
-
-    fn div2(self) -> Self {
-        self.wrapping_shr(1)
-    }
-
 
 	fn into_inner(self) -> Self::Inner;
 	fn as_inner(&self) -> &Self::Inner;

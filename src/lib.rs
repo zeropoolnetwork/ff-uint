@@ -15,6 +15,7 @@
 #[doc(hidden)] pub use static_assertions;
 #[doc(hidden)] pub use crunchy::unroll;
 #[doc(hidden)] pub use concat_idents::concat_idents;
+#[doc(hidden)] pub use borsh;
 
 
 #[macro_use] mod uint;
