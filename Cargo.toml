@@ -22,7 +22,7 @@ static_assertions = "1.0.0"
 arbitrary = { version = "0.4", optional = true }
 ff-uint_derive = { version = "0.1", path = "ff-uint_derive" }
 rand_core = "0.5"
-
+concat-idents = "1.0.0"
 
 
 [features]

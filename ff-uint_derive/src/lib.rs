@@ -10,6 +10,7 @@ use quote::quote;
 use quote::TokenStreamExt;
 use std::str::FromStr;
 
+
 #[proc_macro_derive(PrimeField, attributes(PrimeFieldModulus, PrimeFieldGenerator))]
 pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the type definition
@@ -50,7 +51,7 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         prime_field_constants_and_sqrt(&ast.ident, &repr_ident, modulus, limbs, generator);
 
     gen.extend(constants_impl);
-    gen.extend(prime_field_repr_impl(&repr_ident, limbs));
+    //gen.extend(prime_field_repr_impl(&repr_ident, limbs));
     gen.extend(prime_field_impl(&ast.ident, &repr_ident, limbs));
     gen.extend(sqrt_impl);
 
@@ -185,7 +186,7 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
             }
         }
 
-        impl ::ff::PrimeFieldRepr for #repr {
+        impl ::ff_uint::PrimeFieldRepr for #repr {
             #[inline(always)]
             fn is_odd(&self) -> bool {
                 self.0[0] & 1 == 1
@@ -294,7 +295,7 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
                 let mut carry = 0;
 
                 for (a, b) in self.0.iter_mut().zip(other.0.iter()) {
-                    *a = ::ff::adc(*a, *b, &mut carry);
+                    *a = ::ff_uint::adc(*a, *b, &mut carry);
                 }
             }
 
@@ -303,7 +304,7 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
                 let mut borrow = 0;
 
                 for (a, b) in self.0.iter_mut().zip(other.0.iter()) {
-                    *a = ::ff::sbb(*a, *b, &mut borrow);
+                    *a = ::ff_uint::sbb(*a, *b, &mut borrow);
                 }
             }
         }
@@ -418,15 +419,15 @@ fn prime_field_constants_and_sqrt(
     let mod_minus_1_over_2 =
         biguint_to_u64_vec((&modulus - BigUint::from_str("1").unwrap()) >> 1, limbs);
     let legendre_impl = quote! {
-        fn legendre(&self) -> ::ff::LegendreSymbol {
+        fn legendre(&self) -> ::ff_uint::LegendreSymbol {
             // s = self^((modulus - 1) // 2)
             let s = self.pow(#mod_minus_1_over_2);
             if s == Self::zero() {
-                ::ff::LegendreSymbol::Zero
+                ::ff_uint::LegendreSymbol::Zero
             } else if s == Self::one() {
-                ::ff::LegendreSymbol::QuadraticResidue
+                ::ff_uint::LegendreSymbol::QuadraticResidue
             } else {
-                ::ff::LegendreSymbol::QuadraticNonResidue
+                ::ff_uint::LegendreSymbol::QuadraticNonResidue
             }
         }
     };
@@ -440,7 +441,7 @@ fn prime_field_constants_and_sqrt(
             let rneg = biguint_to_u64_vec(&modulus - &r, limbs);
 
             quote! {
-                impl ::ff::SqrtField for #name {
+                impl ::ff_uint::SqrtField for #name {
                     #legendre_impl
 
                     fn sqrt(&self) -> Option<Self> {
@@ -467,7 +468,7 @@ fn prime_field_constants_and_sqrt(
             let t = biguint_to_u64_vec(t.clone(), limbs);
 
             quote! {
-                impl ::ff::SqrtField for #name {
+                impl ::ff_uint::SqrtField for #name {
                     #legendre_impl
 
                     fn sqrt(&self) -> Option<Self> {
@@ -475,9 +476,9 @@ fn prime_field_constants_and_sqrt(
                         // https://eprint.iacr.org/2012/685.pdf (page 12, algorithm 5)
 
                         match self.legendre() {
-                            ::ff::LegendreSymbol::Zero => Some(*self),
-                            ::ff::LegendreSymbol::QuadraticNonResidue => None,
-                            ::ff::LegendreSymbol::QuadraticResidue => {
+                            ::ff_uint::LegendreSymbol::Zero => Some(*self),
+                            ::ff_uint::LegendreSymbol::QuadraticNonResidue => None,
+                            ::ff_uint::LegendreSymbol::QuadraticResidue => {
                                 let mut c = #name(ROOT_OF_UNITY);
                                 let mut r = self.pow(#t_plus_1_over_2);
                                 let mut t = self.pow(#t);
@@ -600,14 +601,14 @@ fn prime_field_impl(
                 gen.extend(quote! {
                     let k = #temp.wrapping_mul(INV);
                     let mut carry = 0;
-                    ::ff::mac_with_carry(#temp, k, MODULUS.0[0], &mut carry);
+                    ::ff_uint::mac_with_carry(#temp, k, MODULUS.0[0], &mut carry);
                 });
             }
 
             for j in 1..limbs {
                 let temp = get_temp(i + j);
                 gen.extend(quote! {
-                    #temp = ::ff::mac_with_carry(#temp, k, MODULUS.0[#j], &mut carry);
+                    #temp = ::ff_uint::mac_with_carry(#temp, k, MODULUS.0[#j], &mut carry);
                 });
             }
 
@@ -615,11 +616,11 @@ fn prime_field_impl(
 
             if i == 0 {
                 gen.extend(quote! {
-                    #temp = ::ff::adc(#temp, 0, &mut carry);
+                    #temp = ::ff_uint::adc(#temp, 0, &mut carry);
                 });
             } else {
                 gen.extend(quote! {
-                    #temp = ::ff::adc(#temp, carry2, &mut carry);
+                    #temp = ::ff_uint::adc(#temp, carry2, &mut carry);
                 });
             }
 
@@ -653,11 +654,11 @@ fn prime_field_impl(
                 let temp = get_temp(i + j);
                 if i == 0 {
                     gen.extend(quote! {
-                        let #temp = ::ff::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
+                        let #temp = ::ff_uint::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
                     });
                 } else {
                     gen.extend(quote!{
-                        let #temp = ::ff::mac_with_carry(#temp, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
+                        let #temp = ::ff_uint::mac_with_carry(#temp, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
                     });
                 }
             }
@@ -697,16 +698,16 @@ fn prime_field_impl(
             let temp1 = get_temp(i * 2 + 1);
             if i == 0 {
                 gen.extend(quote! {
-                    let #temp0 = ::ff::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
+                    let #temp0 = ::ff_uint::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
                 });
             } else {
                 gen.extend(quote!{
-                    let #temp0 = ::ff::mac_with_carry(#temp0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
+                    let #temp0 = ::ff_uint::mac_with_carry(#temp0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
                 });
             }
 
             gen.extend(quote! {
-                let #temp1 = ::ff::adc(#temp1, 0, &mut carry);
+                let #temp1 = ::ff_uint::adc(#temp1, 0, &mut carry);
             });
         }
 
@@ -740,11 +741,11 @@ fn prime_field_impl(
 
                 if i == 0 {
                     gen.extend(quote! {
-                        let #temp = ::ff::mac_with_carry(0, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
+                        let #temp = ::ff_uint::mac_with_carry(0, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
                     });
                 } else {
                     gen.extend(quote!{
-                        let #temp = ::ff::mac_with_carry(#temp, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
+                        let #temp = ::ff_uint::mac_with_carry(#temp, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
                     });
                 }
             }
@@ -835,7 +836,7 @@ fn prime_field_impl(
             }
         }
 
-        impl ::ff::PrimeField for #name {
+        impl ::ff_uint::PrimeField for #name {
             type Repr = #repr;
 
             fn from_repr(r: #repr) -> Result<#name, PrimeFieldDecodingError> {
@@ -877,7 +878,7 @@ fn prime_field_impl(
             }
         }
 
-        impl ::ff::Field for #name {
+        impl ::ff_uint::Field for #name {
             /// Computes a uniformly random element using rejection sampling.
             fn random<R: ::rand_core::RngCore + ?std::marker::Sized>(rng: &mut R) -> Self {
                 loop {
@@ -890,7 +891,7 @@ fn prime_field_impl(
                     };
 
                     // Mask away the unused most-significant bits.
-                    tmp.0.as_mut()[#top_limb_index] &= 0xffffffffffffffff >> REPR_SHAVE_BITS;
+                    tmp.0.as_inner_mut()[#top_limb_index] &= 0xffffffffffffffff >> REPR_SHAVE_BITS;
 
                     if tmp.is_valid() {
                         return tmp
@@ -916,7 +917,7 @@ fn prime_field_impl(
             #[inline]
             fn add_assign(&mut self, other: &#name) {
                 // This cannot exceed the backing capacity.
-                self.0.add_nocarry(&other.0);
+                self.0 += other.0;
 
                 // However, it may need to be reduced.
                 self.reduce();
@@ -925,7 +926,7 @@ fn prime_field_impl(
             #[inline]
             fn double(&mut self) {
                 // This cannot exceed the backing capacity.
-                self.0.mul2();
+                self.0<<=1;
 
                 // However, it may need to be reduced.
                 self.reduce();
@@ -935,17 +936,17 @@ fn prime_field_impl(
             fn sub_assign(&mut self, other: &#name) {
                 // If `other` is larger than `self`, we'll need to add the modulus to self first.
                 if other.0 > self.0 {
-                    self.0.add_nocarry(&MODULUS);
+                    self.0 += MODULUS;
                 }
 
-                self.0.sub_noborrow(&other.0);
+                self.0 -= other.0;
             }
 
             #[inline]
             fn negate(&mut self) {
                 if !self.is_zero() {
                     let mut tmp = MODULUS;
-                    tmp.sub_noborrow(&self.0);
+                    tmp -= self.0;
                     self.0 = tmp;
                 }
             }
@@ -967,32 +968,32 @@ fn prime_field_impl(
 
                     while u != one && v != one {
                         while u.is_even() {
-                            u.div2();
+                            u >>= 1;
 
                             if b.0.is_even() {
-                                b.0.div2();
+                                b.0 >>= 1;
                             } else {
-                                b.0.add_nocarry(&MODULUS);
-                                b.0.div2();
+                                b.0 += MODULUS;
+                                b.0 >>= 1;
                             }
                         }
 
                         while v.is_even() {
-                            v.div2();
+                            v >>= 1;
 
                             if c.0.is_even() {
-                                c.0.div2();
+                                c.0 >>= 1;
                             } else {
-                                c.0.add_nocarry(&MODULUS);
-                                c.0.div2();
+                                c.0 += MODULUS;
+                                c.0 >>= 1;
                             }
                         }
 
                         if v < u {
-                            u.sub_noborrow(&v);
+                            u -= v;
                             b.sub_assign(&c);
                         } else {
-                            v.sub_noborrow(&u);
+                            v -= u;
                             c.sub_assign(&b);
                         }
                     }
@@ -1036,7 +1037,7 @@ fn prime_field_impl(
             #[inline(always)]
             fn reduce(&mut self) {
                 if !self.is_valid() {
-                    self.0.sub_noborrow(&MODULUS);
+                    self.0-= MODULUS;
                 }
             }
 

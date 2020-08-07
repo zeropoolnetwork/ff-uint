@@ -11,19 +11,34 @@ use core::str::FromStr;
 use core::u64::MAX;
 use ff_uint::{construct_uint, overflowing, Uint};
 
+
+
 construct_uint! {
-	mod u256 {
 		pub struct U256(4);
-	}
 }
 
 construct_uint! {
-	mod u512 {
 		pub struct U512(8);
-	}
 }
 
-#[cfg(feature = "std")]
+
+use ff_uint::{PrimeField, Field, PrimeFieldDecodingError};
+
+
+#[derive(PrimeField)]
+#[PrimeFieldModulus = "6554484396890773809930967563523245729705921265872317281365359162392183254199"]
+#[PrimeFieldGenerator = "7"]
+pub struct Fs(U256);
+
+
+#[test]
+fn ff_test() {
+	let mut c = Fs::zero();
+	c.sub_assign(&Fs::one());
+	println!("{}", c);
+}
+
+
 #[test]
 fn hash_impl_is_the_same_as_for_a_slice() {
 	use core::hash::{Hash, Hasher as _};

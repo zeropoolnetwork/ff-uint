@@ -4,7 +4,7 @@
 #![deny(intra_doc_link_resolution_failure)]
 #![allow(unused_imports)]
 
-#[cfg(feature = "derive")]
+
 pub use ff_uint_derive::*;
 
 use rand_core::RngCore;
@@ -88,11 +88,11 @@ pub trait SqrtField: Field {
 
 
 
-
+/*
 /// This trait represents a wrapper around a biginteger which can encode any element of a particular
 /// prime field. It is a smart wrapper around a sequence of `u64` limbs, least-significant digit
 /// first.
-pub trait PrimeFieldRepr2:
+pub trait PrimeFieldRepr:
     Sized
     + Copy
     + Clone
@@ -185,6 +185,7 @@ pub trait PrimeFieldRepr2:
         Ok(())
     }
 }
+*/
 
 #[derive(Debug, PartialEq)]
 pub enum LegendreSymbol {
@@ -223,7 +224,7 @@ impl fmt::Display for PrimeFieldDecodingError {
 pub trait PrimeField: Field {
     /// The prime field can be converted back and forth into this biginteger
     /// representation.
-    type Repr: PrimeFieldRepr2 + From<Self>;
+    type Repr: crate::Uint + From<Self>;
 
     /// Interpret a string of numbers as a (congruent) prime field element.
     /// Does not accept unnecessary leading zeroes or a blank string.

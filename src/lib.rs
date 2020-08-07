@@ -9,32 +9,18 @@
 //! Efficient large, fixed-size big integers and hashes.
 
 
-#[doc(hidden)]
-pub use byteorder;
+#[doc(hidden)] pub use byteorder;
+#[doc(hidden)] pub use rustc_hex;
+#[doc(hidden)] pub use rand;
+#[doc(hidden)] pub use static_assertions;
+#[doc(hidden)] pub use crunchy::unroll;
+#[doc(hidden)] pub use concat_idents::concat_idents;
 
 
-#[doc(hidden)]
-pub use rustc_hex;
+#[macro_use] mod uint;
+#[macro_use] mod ff;
 
-
-#[doc(hidden)]
-pub use rand;
-
-
-#[doc(hidden)]
-pub use static_assertions;
-
-#[doc(hidden)]
-pub use crunchy::unroll;
-
-#[doc(hidden)]
+pub use uint::traits::*;
 pub use uint::macros::*;
-
-#[macro_use]
-#[rustfmt::skip]
-mod uint;
-pub use crate::uint::*;
-
-mod ff;
 pub use ff::*;
 
