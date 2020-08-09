@@ -6,32 +6,50 @@ extern crate proc_macro2;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, ToPrimitive, Zero};
+use proc_macro::TokenStream;
 use quote::quote;
 use quote::TokenStreamExt;
 use std::str::FromStr;
+use syn::{parse_macro_input, Expr, ExprLit, ImplItem, ItemImpl, Lit};
 
+/// construct_primefield_params! {
+///     impl PrimeFieldParams for Fs {
+///         type Inner = U256;
+///         const MODULUS: &'static str = "6554484396890773809930967563523245729705921265872317281365359162392183254199";
+///         const GENERATOR: &'static str = "7"
+///     }
+/// }
+#[proc_macro]
+pub fn construct_primefield_params(input: TokenStream) -> TokenStream {
+    let impl_block = parse_macro_input!(input as ItemImpl);
 
-#[proc_macro_derive(PrimeField, attributes(PrimeFieldModulus, PrimeFieldGenerator))]
-pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // Parse the type definition
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    if let Some((_, name, _)) = &impl_block.trait_ {
+        if name.segments.last().unwrap().ident != "PrimeFieldParams" {
+            panic!("Invalid trait, expected PrimeFieldParams");
+        }
+    } else {
+        panic!("PrimeFieldParams implementation must be present");
+    }
 
-    // The struct we're deriving for is a wrapper around a "Repr" type we must construct.
-    let repr_ident = fetch_wrapped_ident(&ast.data)
-        .expect("PrimeField derive only operates over tuple structs of a single item");
+    let self_ty = impl_block.self_ty;
+    let repr_ty = impl_block
+        .items
+        .iter()
+        .find_map(|item| {
+            if let ImplItem::Type(ty) = item {
+                Some(ty.ty.clone())
+            } else {
+                None
+            }
+        })
+        .expect("Associated type Inner must be specified");
 
-    // We're given the modulus p of the prime field
-    let modulus: BigUint = fetch_attr("PrimeFieldModulus", &ast.attrs)
-        .expect("Please supply a PrimeFieldModulus attribute")
+    let modulus: BigUint = fetch_const("MODULUS", &impl_block.items)
         .parse()
-        .expect("PrimeFieldModulus should be a number");
-
-    // We may be provided with a generator of p - 1 order. It is required that this generator be quadratic
-    // nonresidue.
-    let generator: BigUint = fetch_attr("PrimeFieldGenerator", &ast.attrs)
-        .expect("Please supply a PrimeFieldGenerator attribute")
+        .expect("MODULUS should be a valid number");
+    let generator: BigUint = fetch_const("GENERATOR", &impl_block.items)
         .parse()
-        .expect("PrimeFieldGenerator should be a number");
+        .expect("GENERATOR should be a valid number");
 
     // The arithmetic in this library only works if the modulus*2 is smaller than the backing
     // representation. Compute the number of limbs we need.
@@ -48,70 +66,47 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut gen = proc_macro2::TokenStream::new();
 
     let (constants_impl, sqrt_impl) =
-        prime_field_constants_and_sqrt(&ast.ident, &repr_ident, modulus, limbs, generator);
+        prime_field_constants_and_sqrt(&self_ty, &repr_ty, modulus, limbs, generator);
 
     gen.extend(constants_impl);
-    //gen.extend(prime_field_repr_impl(&repr_ident, limbs));
-    gen.extend(prime_field_impl(&ast.ident, &repr_ident, limbs));
+    // gen.extend(prime_field_repr_impl(&repr_ty, limbs));
+    gen.extend(prime_field_impl(&self_ty, &repr_ty, limbs));
     gen.extend(sqrt_impl);
 
     // Return the generated impl
     gen.into()
 }
 
-/// Fetches the ident being wrapped by the type we're deriving.
-fn fetch_wrapped_ident(body: &syn::Data) -> Option<syn::Ident> {
-    match body {
-        &syn::Data::Struct(ref variant_data) => match variant_data.fields {
-            syn::Fields::Unnamed(ref fields) => {
-                if fields.unnamed.len() == 1 {
-                    match fields.unnamed[0].ty {
-                        syn::Type::Path(ref path) => {
-                            if path.path.segments.len() == 1 {
-                                return Some(path.path.segments[0].ident.clone());
-                            }
-                        }
-                        _ => {}
-                    }
+/// Fetch a constant string from an impl block.
+fn fetch_const(name: &str, items: &[ImplItem]) -> String {
+    let c = items
+        .iter()
+        .find_map(|item| {
+            if let ImplItem::Const(c) = item {
+                if c.ident == name {
+                    Some(c)
+                } else {
+                    None
                 }
+            } else {
+                None
             }
-            _ => {}
-        },
-        _ => {}
-    };
+        })
+        .expect("Associated constant MODULUS must be specified");
 
-    None
-}
-
-
-
-/// Fetch an attribute string from the derived struct.
-fn fetch_attr(name: &str, attrs: &[syn::Attribute]) -> Option<String> {
-    for attr in attrs {
-        if let Ok(meta) = attr.parse_meta() {
-            match meta {
-                syn::Meta::NameValue(nv) => {
-                    if nv.path.get_ident().map(|i| i.to_string()) == Some(name.to_string()) {
-                        match nv.lit {
-                            syn::Lit::Str(ref s) => return Some(s.value()),
-                            _ => {
-                                panic!("attribute {} should be a string", name);
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    panic!("attribute {} should be a string", name);
-                }
-            }
+    match c.expr {
+        Expr::Lit(ExprLit {
+            lit: Lit::Str(ref s),
+            ..
+        }) => return s.value(),
+        _ => {
+            panic!("Associated constant {} should be a string", name);
         }
     }
-
-    None
 }
 
 // Implement PrimeFieldRepr for the wrapped ident `repr` with `limbs` limbs.
-fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenStream {
+fn prime_field_repr_impl(repr: &syn::Type, limbs: usize) -> proc_macro2::TokenStream {
     quote! {
         #[derive(Copy, Clone, PartialEq, Eq, Default)]
         pub struct #repr(pub [u64; #limbs]);
@@ -384,8 +379,8 @@ fn test_exp() {
 }
 
 fn prime_field_constants_and_sqrt(
-    name: &syn::Ident,
-    repr: &syn::Ident,
+    name: &syn::Type,
+    repr: &syn::Type,
     modulus: BigUint,
     limbs: usize,
     generator: BigUint,
@@ -567,11 +562,7 @@ fn prime_field_constants_and_sqrt(
 }
 
 /// Implement PrimeField for the derived type.
-fn prime_field_impl(
-    name: &syn::Ident,
-    repr: &syn::Ident,
-    limbs: usize,
-) -> proc_macro2::TokenStream {
+fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_macro2::TokenStream {
     // Returns r{n} as an ident.
     fn get_temp(n: usize) -> syn::Ident {
         syn::Ident::new(&format!("r{}", n), proc_macro2::Span::call_site())
