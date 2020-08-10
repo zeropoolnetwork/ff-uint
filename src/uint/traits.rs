@@ -304,3 +304,15 @@ pub trait Uint:
 	}
 }
 
+pub trait PrimeFieldParams {
+    type Inner;
+    const MODULUS: Self::Inner;
+    const MODULUS_BITS: u32;
+    const REPR_SHAVE_BITS: u32;
+    const R: Self::Inner;
+    const R2: Self::Inner;
+    const INV: u64;
+    const GENERATOR: Self::Inner;
+    const S: u32;
+    const ROOT_OF_UNITY: Self::Inner;
+}
