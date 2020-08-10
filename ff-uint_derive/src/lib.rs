@@ -10,18 +10,44 @@ use proc_macro::TokenStream;
 use quote::quote;
 use quote::TokenStreamExt;
 use std::str::FromStr;
-use syn::{parse_macro_input, Expr, ExprLit, ImplItem, ItemImpl, Lit};
+use syn::parse::{Parse, ParseStream, Result as ParseResult};
+use syn::{parse_macro_input, Expr, ExprLit, Ident, ImplItem, ItemImpl, ItemStruct, Lit};
 
+struct PrimeFieldParamsDef {
+    struct_def: ItemStruct,
+    impl_block: ItemImpl,
+}
+
+impl Parse for PrimeFieldParamsDef {
+    fn parse(input: ParseStream) -> ParseResult<Self> {
+        let struct_def: ItemStruct = input.parse()?;
+        let impl_block: ItemImpl = input.parse()?;
+
+        Ok(PrimeFieldParamsDef {
+            struct_def,
+            impl_block,
+        })
+    }
+}
+
+// TODO: Automatically prefix repr with super.
+/// ### Example
+/// ```
 /// construct_primefield_params! {
+///     pub struct Fs(super::U256);
 ///     impl PrimeFieldParams for Fs {
-///         type Inner = U256;
+///         type Inner = super::U256;
 ///         const MODULUS: &'static str = "6554484396890773809930967563523245729705921265872317281365359162392183254199";
-///         const GENERATOR: &'static str = "7"
+///         const GENERATOR: &'static str = "7";
 ///     }
 /// }
+/// ```
 #[proc_macro]
 pub fn construct_primefield_params(input: TokenStream) -> TokenStream {
-    let impl_block = parse_macro_input!(input as ItemImpl);
+    let PrimeFieldParamsDef {
+        struct_def,
+        impl_block,
+    } = parse_macro_input!(input as PrimeFieldParamsDef);
 
     if let Some((_, name, _)) = &impl_block.trait_ {
         if name.segments.last().unwrap().ident != "PrimeFieldParams" {
@@ -37,7 +63,11 @@ pub fn construct_primefield_params(input: TokenStream) -> TokenStream {
         .iter()
         .find_map(|item| {
             if let ImplItem::Type(ty) = item {
-                Some(ty.ty.clone())
+                if ty.ident == "Inner" {
+                    Some(ty.ty.clone())
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -65,13 +95,33 @@ pub fn construct_primefield_params(input: TokenStream) -> TokenStream {
 
     let mut gen = proc_macro2::TokenStream::new();
 
-    let (constants_impl, sqrt_impl) =
+    let (params_impl, sqrt_impl) =
         prime_field_constants_and_sqrt(&self_ty, &repr_ty, modulus, limbs, generator);
 
-    gen.extend(constants_impl);
+    let module_name = Ident::new(
+        &format!("__generated_{}", struct_def.ident),
+        syn::export::Span::call_site(),
+    );
+    let prime_field_impl = prime_field_impl(&self_ty, &repr_ty, limbs);
+
+    gen.extend(quote! {
+        pub use self::#module_name::*;
+        mod #module_name {
+            use ::ff_uint::PrimeFieldParams;
+            use ::ff_uint::Field;
+            use ::ff_uint::PrimeField;
+            use ::ff_uint::Uint;
+            use ::ff_uint::PrimeFieldDecodingError;
+            #struct_def
+            #params_impl
+            #prime_field_impl
+            #sqrt_impl
+        }
+    });
+    // gen.extend(params_impl);
     // gen.extend(prime_field_repr_impl(&repr_ty, limbs));
-    gen.extend(prime_field_impl(&self_ty, &repr_ty, limbs));
-    gen.extend(sqrt_impl);
+    // gen.extend(prime_field_impl(&self_ty, &repr_ty, limbs));
+    // gen.extend(sqrt_impl);
 
     // Return the generated impl
     gen.into()
@@ -474,10 +524,10 @@ fn prime_field_constants_and_sqrt(
                             ::ff_uint::LegendreSymbol::Zero => Some(*self),
                             ::ff_uint::LegendreSymbol::QuadraticNonResidue => None,
                             ::ff_uint::LegendreSymbol::QuadraticResidue => {
-                                let mut c = #name(ROOT_OF_UNITY);
+                                let mut c = #name(Self::ROOT_OF_UNITY);
                                 let mut r = self.pow(#t_plus_1_over_2);
                                 let mut t = self.pow(#t);
-                                let mut m = S;
+                                let mut m = <Self as PrimeFieldParams>::S;
 
                                 while t != Self::one() {
                                     let mut i = 1;
@@ -528,34 +578,38 @@ fn prime_field_constants_and_sqrt(
 
     (
         quote! {
-            /// This is the modulus m of the prime field
-            const MODULUS: #repr = #repr([#(#modulus,)*]);
+            impl ::ff_uint::PrimeFieldParams for #name {
+                type Inner = #repr;
 
-            /// The number of bits needed to represent the modulus.
-            const MODULUS_BITS: u32 = #modulus_num_bits;
+                /// This is the modulus m of the prime field
+                const MODULUS: #repr = #repr([#(#modulus,)*]);
 
-            /// The number of bits that must be shaved from the beginning of
-            /// the representation when randomly sampling.
-            const REPR_SHAVE_BITS: u32 = #repr_shave_bits;
+                /// The number of bits needed to represent the modulus.
+                const MODULUS_BITS: u32 = #modulus_num_bits;
 
-            /// 2^{limbs*64} mod m
-            const R: #repr = #repr(#r);
+                /// The number of bits that must be shaved from the beginning of
+                /// the representation when randomly sampling.
+                const REPR_SHAVE_BITS: u32 = #repr_shave_bits;
 
-            /// 2^{limbs*64*2} mod m
-            const R2: #repr = #repr(#r2);
+                /// 2^{limbs*64} mod m
+                const R: #repr = #repr(#r);
 
-            /// -(m^{-1} mod m) mod m
-            const INV: u64 = #inv;
+                /// 2^{limbs*64*2} mod m
+                const R2: #repr = #repr(#r2);
 
-            /// Multiplicative generator of `MODULUS` - 1 order, also quadratic
-            /// nonresidue.
-            const GENERATOR: #repr = #repr(#generator);
+                /// -(m^{-1} mod m) mod m
+                const INV: u64 = #inv;
 
-            /// 2^s * t = MODULUS - 1 with t odd
-            const S: u32 = #s;
+                /// Multiplicative generator of `MODULUS` - 1 order, also quadratic
+                /// nonresidue.
+                const GENERATOR: #repr = #repr(#generator);
 
-            /// 2^s root of unity computed by GENERATOR^t
-            const ROOT_OF_UNITY: #repr = #repr(#root_of_unity);
+                /// 2^s * t = MODULUS - 1 with t odd
+                const S: u32 = #s;
+
+                /// 2^s root of unity computed by GENERATOR^t
+                const ROOT_OF_UNITY: #repr = #repr(#root_of_unity);
+            }
         },
         sqrt_impl,
     )
@@ -590,16 +644,16 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             {
                 let temp = get_temp(i);
                 gen.extend(quote! {
-                    let k = #temp.wrapping_mul(INV);
+                    let k = #temp.wrapping_mul(Self::INV);
                     let mut carry = 0;
-                    ::ff_uint::mac_with_carry(#temp, k, MODULUS.0[0], &mut carry);
+                    ::ff_uint::mac_with_carry(#temp, k, Self::MODULUS.0[0], &mut carry);
                 });
             }
 
             for j in 1..limbs {
                 let temp = get_temp(i + j);
                 gen.extend(quote! {
-                    #temp = ::ff_uint::mac_with_carry(#temp, k, MODULUS.0[#j], &mut carry);
+                    #temp = ::ff_uint::mac_with_carry(#temp, k, Self::MODULUS.0[#j], &mut carry);
                 });
             }
 
@@ -833,7 +887,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             fn from_repr(r: #repr) -> Result<#name, PrimeFieldDecodingError> {
                 let mut r = #name(r);
                 if r.is_valid() {
-                    r.mul_assign(&#name(R2));
+                    r.mul_assign(&#name(Self::R2));
 
                     Ok(r)
                 } else {
@@ -851,21 +905,21 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             }
 
             fn char() -> #repr {
-                MODULUS
+                Self::MODULUS
             }
 
-            const NUM_BITS: u32 = MODULUS_BITS;
+            const NUM_BITS: u32 = Self::MODULUS_BITS;
 
             const CAPACITY: u32 = Self::NUM_BITS - 1;
 
             fn multiplicative_generator() -> Self {
-                #name(GENERATOR)
+                #name(Self::GENERATOR)
             }
 
-            const S: u32 = S;
+            const S: u32 = <Self as PrimeFieldParams>::S;
 
             fn root_of_unity() -> Self {
-                #name(ROOT_OF_UNITY)
+                #name(Self::ROOT_OF_UNITY)
             }
         }
 
@@ -882,7 +936,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
                     };
 
                     // Mask away the unused most-significant bits.
-                    tmp.0.as_inner_mut()[#top_limb_index] &= 0xffffffffffffffff >> REPR_SHAVE_BITS;
+                    tmp.0.as_inner_mut()[#top_limb_index] &= 0xffffffffffffffff >> Self::REPR_SHAVE_BITS;
 
                     if tmp.is_valid() {
                         return tmp
@@ -897,7 +951,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
 
             #[inline]
             fn one() -> Self {
-                #name(R)
+                #name(Self::R)
             }
 
             #[inline]
@@ -927,7 +981,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             fn sub_assign(&mut self, other: &#name) {
                 // If `other` is larger than `self`, we'll need to add the modulus to self first.
                 if other.0 > self.0 {
-                    self.0 += MODULUS;
+                    self.0 += Self::MODULUS;
                 }
 
                 self.0 -= other.0;
@@ -936,7 +990,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             #[inline]
             fn negate(&mut self) {
                 if !self.is_zero() {
-                    let mut tmp = MODULUS;
+                    let mut tmp = Self::MODULUS;
                     tmp -= self.0;
                     self.0 = tmp;
                 }
@@ -953,8 +1007,8 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
                     let one = #repr::from(1);
 
                     let mut u = self.0;
-                    let mut v = MODULUS;
-                    let mut b = #name(R2); // Avoids unnecessary reduction step.
+                    let mut v = Self::MODULUS;
+                    let mut b = #name(Self::R2); // Avoids unnecessary reduction step.
                     let mut c = Self::zero();
 
                     while u != one && v != one {
@@ -964,7 +1018,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
                             if b.0.is_even() {
                                 b.0 >>= 1;
                             } else {
-                                b.0 += MODULUS;
+                                b.0 += Self::MODULUS;
                                 b.0 >>= 1;
                             }
                         }
@@ -975,7 +1029,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
                             if c.0.is_even() {
                                 c.0 >>= 1;
                             } else {
-                                c.0 += MODULUS;
+                                c.0 += Self::MODULUS;
                                 c.0 >>= 1;
                             }
                         }
@@ -1020,7 +1074,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             /// internally.
             #[inline(always)]
             fn is_valid(&self) -> bool {
-                self.0 < MODULUS
+                self.0 < Self::MODULUS
             }
 
             /// Subtracts the modulus from this element if this element is not in the
@@ -1028,7 +1082,7 @@ fn prime_field_impl(name: &syn::Type, repr: &syn::Type, limbs: usize) -> proc_ma
             #[inline(always)]
             fn reduce(&mut self) {
                 if !self.is_valid() {
-                    self.0-= MODULUS;
+                    self.0-= Self::MODULUS;
                 }
             }
 

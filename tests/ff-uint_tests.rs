@@ -9,7 +9,7 @@
 use core::convert::TryInto;
 use core::str::FromStr;
 use core::u64::MAX;
-use ff_uint::{construct_uint, overflowing, Uint, construct_primefield_params};
+use ff_uint::{construct_uint, overflowing, Uint, construct_primefield_params, Field};
 
 
 
@@ -21,13 +21,11 @@ construct_uint! {
 		pub struct U512(8);
 }
 
-use ff_uint::{PrimeField, Field, PrimeFieldDecodingError};
-
-pub struct Fs(U256);
-
 construct_primefield_params! {
+    pub struct Fs(super::U256);
+
     impl PrimeFieldParams for Fs {
-        type Inner = U256;
+        type Inner = super::U256;
         const MODULUS: &'static str = "6554484396890773809930967563523245729705921265872317281365359162392183254199";
         const GENERATOR: &'static str = "7";
    }
