@@ -499,6 +499,11 @@ macro_rules! construct_uint {
 					const WORD_BITS : usize = Self::WORD_BITS;
 
 					#[inline]
+					fn random<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+						rng.gen()
+					}
+
+					#[inline]
 					fn into_inner(self) -> Self::Inner {
 						self.0
 					}

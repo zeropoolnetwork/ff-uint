@@ -21,6 +21,8 @@ construct_uint! {
 		pub struct U512(8);
 }
 
+
+
 construct_primefield_params! {
     pub struct Fs(super::U256);
 
@@ -33,8 +35,8 @@ construct_primefield_params! {
 
 #[test]
 fn ff_test() {
-	let mut c = Fs::zero();
-	c.sub_assign(&Fs::one());
+	let mut c = Fs::ZERO;
+	c=c.wrapping_sub(Fs::ONE);
 	println!("{}", c);
 }
 

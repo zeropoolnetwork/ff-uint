@@ -7,24 +7,24 @@ pub trait Uint:
 	std::cmp::PartialOrd +
 	std::cmp::Eq +
 	std::cmp::Ord +
-	std::ops::Add<Self> +
-	std::ops::Sub<Self> +
-	std::ops::Mul<Self> +
-	std::ops::Mul<u64> +
-	std::ops::Div<Self> +
-	std::ops::Rem<Self> +
-	std::ops::Shl<u32> +
-	std::ops::Shr<u32> +
+	std::ops::Add<Self, Output=Self> +
+	std::ops::Sub<Self, Output=Self> +
+	std::ops::Mul<Self, Output=Self> +
+	std::ops::Mul<u64, Output=Self> +
+	std::ops::Div<Self, Output=Self> +
+	std::ops::Rem<Self, Output=Self> +
+	std::ops::Shl<u32, Output=Self> +
+	std::ops::Shr<u32, Output=Self> +
 	std::ops::AddAssign<Self> +
 	std::ops::SubAssign<Self> +
 	std::ops::MulAssign<Self> +
 	std::ops::MulAssign<u64> +
 	std::ops::DivAssign<Self> +
 	std::ops::RemAssign<Self> +
-	std::ops::Not +
-	std::ops::BitAnd<Self> +
-	std::ops::BitOr<Self> +
-	std::ops::BitXor<Self> +
+	std::ops::Not<Output=Self> +
+	std::ops::BitAnd<Self, Output=Self> +
+	std::ops::BitOr<Self, Output=Self> +
+	std::ops::BitXor<Self, Output=Self> +
 	std::ops::BitAndAssign<Self> +
 	std::ops::BitOrAssign<Self> +
 	std::ops::ShlAssign<u32> +
@@ -49,7 +49,11 @@ pub trait Uint:
     std::convert::TryInto<i16> +
     std::convert::TryInto<i32> +
     std::convert::TryInto<i64> +
-    std::convert::TryInto<i128> +
+	std::convert::TryInto<i128> +
+	std::fmt::Debug +
+	std::fmt::Display +
+	std::str::FromStr +
+	From<&'static str> +
     crate::borsh::BorshSerialize +
     crate::borsh::BorshDeserialize
 {
@@ -71,7 +75,9 @@ pub trait Uint:
 
     fn is_odd(&self) -> bool {
         self.bit(0)
-    }
+	}
+	
+	fn random<R: rand::Rng + ?Sized>(rng: &mut R) -> Self;
 
 	fn into_inner(self) -> Self::Inner;
 	fn as_inner(&self) -> &Self::Inner;
@@ -304,15 +310,83 @@ pub trait Uint:
 	}
 }
 
-pub trait PrimeFieldParams {
-    type Inner;
-    const MODULUS: Self::Inner;
-    const MODULUS_BITS: u32;
-    const REPR_SHAVE_BITS: u32;
-    const R: Self::Inner;
-    const R2: Self::Inner;
-    const INV: u64;
-    const GENERATOR: Self::Inner;
-    const S: u32;
-    const ROOT_OF_UNITY: Self::Inner;
+pub struct BitIteratorLE<E> {
+    t: E,
+	i: usize,
+	n: usize
 }
+
+impl<E:Uint> Iterator for BitIteratorLE<E> {
+	type Item = bool;
+
+	fn next(&mut self) -> Option<bool> {
+		if self.i >= self.n {
+			None
+		} else {
+			let part = self.i / 64;
+			let bit = self.i & 63;
+			self.i+=1;
+			Some((self.t.as_inner().as_ref()[part]>>bit)&1 == 1)
+		}
+	}
+}
+
+pub trait BitIterLE {
+	type Iter: Iterator<Item=bool>;
+
+	fn bit_iter_le(&self) -> Self::Iter;
+}
+
+impl<I:Uint> BitIterLE for I {
+	type Iter = BitIteratorLE<I>;
+
+	fn bit_iter_le(&self) -> Self::Iter {
+		Self::Iter {
+			t: *self,
+			i: 0,
+			n: I::NUM_WORDS * I::WORD_BITS 
+		}
+	}
+} 
+
+
+pub struct BitIteratorBE<E> {
+    t: E,
+	i: usize
+}
+
+impl<E:Uint> Iterator for BitIteratorBE<E> {
+	type Item = bool;
+
+	fn next(&mut self) -> Option<bool> {
+		if self.i == 0 {
+			None
+		} else {
+			self.i -= 1;
+			let part = self.i / 64;
+			let bit = self.i & 63;
+			Some((self.t.as_inner().as_ref()[part]>>bit)&1 == 1)
+		}
+	}
+}
+
+pub trait BitIterBE {
+	type Iter: Iterator<Item=bool>;
+
+	fn bit_iter_be(&self) -> Self::Iter;
+}
+
+impl<I:Uint> BitIterBE for I {
+	type Iter = BitIteratorBE<I>;
+
+	fn bit_iter_be(&self) -> Self::Iter {
+		Self::Iter {
+			t: *self,
+			i: I::NUM_WORDS * I::WORD_BITS 
+		}
+	}
+} 
+
+
+
+

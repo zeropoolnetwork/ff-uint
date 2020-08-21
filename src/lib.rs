@@ -24,4 +24,5 @@
 pub use uint::traits::*;
 pub use uint::macros::*;
 pub use ff::*;
+pub use ff::traits::*;
 
