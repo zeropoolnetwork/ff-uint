@@ -23,7 +23,6 @@ pub enum LegendreSymbol {
 }
 
 pub trait Field : 
-    PrimeFieldParams +
     Sized + 
     Clone + 
     Copy + 
@@ -90,6 +89,7 @@ pub trait SqrtField: Field {
 }
 
 pub trait PrimeField: 
+    PrimeFieldParams +
     SqrtField +
 //    std::str::FromStr +
 //    From<&'static str>
