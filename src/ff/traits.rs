@@ -28,9 +28,7 @@ pub trait Field :
     Copy + 
     // Default + 
     // std::cmp::PartialEq +
-    // std::cmp::PartialOrd +
     // std::cmp::Eq +
-    // std::cmp::Ord +
     // std::ops::Add<Self, Output=Self> +
     // std::ops::Sub<Self, Output=Self> +
     // std::ops::Mul<Self, Output=Self> +
@@ -44,8 +42,6 @@ pub trait Field :
     // std::ops::DivAssign<Self> +
 	// std::fmt::Debug +
 	// std::fmt::Display +
-    // crate::borsh::BorshSerialize +
-    // crate::borsh::BorshDeserialize
 {
     const ZERO: Self;
     const ONE: Self;
@@ -91,8 +87,10 @@ pub trait SqrtField: Field {
 pub trait PrimeField: 
     PrimeFieldParams +
     SqrtField +
-//    std::str::FromStr +
-//    From<&'static str>
+//  std::str::FromStr +
+//  From<&'static str> +
+//  crate::borsh::BorshSerialize +
+//  crate::borsh::BorshDeserialize
 {
     fn from_uint(v:Self::Inner) -> Option<Self>;
     fn from_mont_uint(v: Self::Inner) -> Option<Self>;
