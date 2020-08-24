@@ -747,6 +747,35 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             }
         }
 
+        impl std::str::FromStr for #name {
+            type Err = <<#name as PrimeFieldParams>::Inner as std::str::FromStr>::Err;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Ok(#name(<<#name as PrimeFieldParams>::Inner as std::str::FromStr>::from_str(s)?))
+            }
+        }
+
+        impl From<&'static str> for #name {
+            fn from(string: &'static str) -> Self {
+                #name(string.into())
+            }
+        }
+
+        impl ::borsh::ser::BorshSerialize for #name {
+            fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+                let uint = self.to_uint();
+                uint.serialize(writer)
+            }
+        }
+
+        impl ::borsh::de::BorshDeserialize for #name {
+            fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
+                let uint = <<#name as PrimeFieldParams>::Inner as ::borsh::de::BorshDeserialize>::deserialize(buf)?;
+                Self::from_uint(uint)
+                    .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))
+            }
+        }
+
         /// Elements are ordered lexicographically.
         impl Ord for #name {
             #[inline(always)]
