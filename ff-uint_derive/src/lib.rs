@@ -663,6 +663,90 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             }
         }
 
+        impl Default for #name {
+            fn default() -> Self {
+                #name(<#name as PrimeFieldParams>::Inner::default())
+            }
+        }
+
+        impl std::ops::Add for #name {
+            type Output = Self;
+
+            fn add(self, other: Self) -> Self {
+                #name(self.0 + other.0)
+            }
+        }
+
+        impl std::ops::AddAssign for #name {
+            fn add_assign(&mut self, other: Self) {
+                self.0 += other.0;
+            }
+        }
+
+        impl std::ops::Sub for #name {
+            type Output = Self;
+
+            fn sub(self, other: Self) -> Self {
+                #name(self.0 - other.0)
+            }
+        }
+
+        impl std::ops::SubAssign for #name {
+            fn sub_assign(&mut self, other: Self) {
+                self.0 -= other.0;
+            }
+        }
+
+        impl std::ops::Mul for #name {
+            type Output = Self;
+
+            fn mul(self, other: Self) -> Self {
+                #name(self.0 * other.0)
+            }
+        }
+
+        impl std::ops::MulAssign for #name {
+            fn mul_assign(&mut self, other: Self) {
+                self.0 *= other.0;
+            }
+        }
+
+        impl std::ops::Mul<u64> for #name {
+            type Output = Self;
+
+            fn mul(self, other: u64) -> Self {
+                #name(self.0 * other)
+            }
+        }
+
+        impl std::ops::MulAssign<u64> for #name {
+            fn mul_assign(&mut self, other: u64) {
+                self.0 *= other;
+            }
+        }
+
+        impl std::ops::Div for #name {
+            type Output = Self;
+
+            fn div(self, other: Self) -> Self {
+                #name(self.0 / other.0)
+            }
+        }
+
+        impl std::ops::DivAssign for #name {
+            fn div_assign(&mut self, other: Self) {
+                self.0 /= other.0;
+            }
+        }
+
+        impl std::ops::Neg for #name {
+            type Output = Self;
+
+            fn neg(self) -> Self {
+                #name(-self.0)
+            }
+        }
+
         /// Elements are ordered lexicographically.
         impl Ord for #name {
             #[inline(always)]

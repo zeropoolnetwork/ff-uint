@@ -26,22 +26,22 @@ pub trait Field :
     Sized + 
     Clone + 
     Copy + 
-    // Default + 
-    // std::cmp::PartialEq +
-    // std::cmp::Eq +
-    // std::ops::Add<Self, Output=Self> +
-    // std::ops::Sub<Self, Output=Self> +
-    // std::ops::Mul<Self, Output=Self> +
-    // std::ops::Mul<u64, Output=Self> +
-    // std::ops::Div<Self, Output=Self> +
-    // std::ops::Neg<Output=Self> +
-    // std::ops::AddAssign<Self> +
-    // std::ops::SubAssign<Self> +
-    // std::ops::MulAssign<Self> +
-    // std::ops::MulAssign<u64> +
-    // std::ops::DivAssign<Self> +
-	// std::fmt::Debug +
-	// std::fmt::Display +
+    Default +
+    std::cmp::PartialEq +
+    std::cmp::Eq +
+    std::ops::Add<Self, Output=Self> +
+    std::ops::Sub<Self, Output=Self> +
+    std::ops::Mul<Self, Output=Self> +
+    std::ops::Mul<u64, Output=Self> +
+    std::ops::Div<Self, Output=Self> +
+    std::ops::Neg<Output=Self> +
+    std::ops::AddAssign<Self> +
+    std::ops::SubAssign<Self> +
+    std::ops::MulAssign<Self> +
+    std::ops::MulAssign<u64> +
+    std::ops::DivAssign<Self> +
+	std::fmt::Debug +
+	std::fmt::Display +
 {
     const ZERO: Self;
     const ONE: Self;
