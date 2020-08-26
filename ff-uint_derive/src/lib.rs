@@ -673,13 +673,13 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn add(self, other: Self) -> Self {
-                #name(self.0 + other.0)
+                self.wrapping_add(other)
             }
         }
 
         impl std::ops::AddAssign for #name {
             fn add_assign(&mut self, other: Self) {
-                self.0 += other.0;
+                *self = self.wrapping_add(other);
             }
         }
 
@@ -687,13 +687,13 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn sub(self, other: Self) -> Self {
-                #name(self.0 - other.0)
+                self.wrapping_sub(other)
             }
         }
 
         impl std::ops::SubAssign for #name {
             fn sub_assign(&mut self, other: Self) {
-                self.0 -= other.0;
+                *self = self.wrapping_sub(other);
             }
         }
 
@@ -701,13 +701,13 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn mul(self, other: Self) -> Self {
-                #name(self.0 * other.0)
+                self.wrapping_mul(other)
             }
         }
 
         impl std::ops::MulAssign for #name {
             fn mul_assign(&mut self, other: Self) {
-                self.0 *= other.0;
+                *self = self.wrapping_mul(other);
             }
         }
 
@@ -715,13 +715,17 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn mul(self, other: u64) -> Self {
-                #name(self.0 * other)
+                let other = Self::from_uint(<<#name as PrimeFieldParams>::Inner as From<u64>>::from(other))
+                    .expect("non-canonical input");
+                self.wrapping_mul(other)
             }
         }
 
         impl std::ops::MulAssign<u64> for #name {
             fn mul_assign(&mut self, other: u64) {
-                self.0 *= other;
+                let other = Self::from_uint(<<#name as PrimeFieldParams>::Inner as From<u64>>::from(other))
+                    .expect("non-canonical input");
+                *self = self.wrapping_mul(other);
             }
         }
 
@@ -729,13 +733,13 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn div(self, other: Self) -> Self {
-                #name(self.0 / other.0)
+                self.wrapping_div(other)
             }
         }
 
         impl std::ops::DivAssign for #name {
             fn div_assign(&mut self, other: Self) {
-                self.0 /= other.0;
+                *self = self.wrapping_div(other);
             }
         }
 
@@ -743,21 +747,24 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             type Output = Self;
 
             fn neg(self) -> Self {
-                #name(-self.0)
+                self.wrapping_neg()
             }
         }
 
         impl std::str::FromStr for #name {
-            type Err = <<#name as PrimeFieldParams>::Inner as std::str::FromStr>::Err;
+            type Err = &'static str;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                Ok(#name(<<#name as PrimeFieldParams>::Inner as std::str::FromStr>::from_str(s)?))
+                let uint = <<#name as PrimeFieldParams>::Inner as std::str::FromStr>::from_str(s)?;
+                Self::from_uint(uint)
+                    .ok_or("non-canonical input")
             }
         }
 
         impl From<&'static str> for #name {
-            fn from(string: &'static str) -> Self {
-                #name(string.into())
+            fn from(s: &'static str) -> Self {
+                let uint = <<#name as PrimeFieldParams>::Inner as From<&'static str>>::from(s);
+                #name::from_uint(uint).expect("non-canonical input")
             }
         }
 
