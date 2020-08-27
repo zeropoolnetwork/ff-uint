@@ -663,6 +663,126 @@ fn prime_field_impl(name: &syn::Type, inner: &syn::Type, limbs: usize) -> proc_m
             }
         }
 
+        impl Default for #name {
+            fn default() -> Self {
+                #name(<#name as PrimeFieldParams>::Inner::default())
+            }
+        }
+
+        impl std::ops::Add for #name {
+            type Output = Self;
+
+            fn add(self, other: Self) -> Self {
+                self.wrapping_add(other)
+            }
+        }
+
+        impl std::ops::AddAssign for #name {
+            fn add_assign(&mut self, other: Self) {
+                *self = self.wrapping_add(other);
+            }
+        }
+
+        impl std::ops::Sub for #name {
+            type Output = Self;
+
+            fn sub(self, other: Self) -> Self {
+                self.wrapping_sub(other)
+            }
+        }
+
+        impl std::ops::SubAssign for #name {
+            fn sub_assign(&mut self, other: Self) {
+                *self = self.wrapping_sub(other);
+            }
+        }
+
+        impl std::ops::Mul for #name {
+            type Output = Self;
+
+            fn mul(self, other: Self) -> Self {
+                self.wrapping_mul(other)
+            }
+        }
+
+        impl std::ops::MulAssign for #name {
+            fn mul_assign(&mut self, other: Self) {
+                *self = self.wrapping_mul(other);
+            }
+        }
+
+        impl std::ops::Mul<u64> for #name {
+            type Output = Self;
+
+            fn mul(self, other: u64) -> Self {
+                let other = Self::from_uint(<<#name as PrimeFieldParams>::Inner as From<u64>>::from(other))
+                    .expect("non-canonical input");
+                self.wrapping_mul(other)
+            }
+        }
+
+        impl std::ops::MulAssign<u64> for #name {
+            fn mul_assign(&mut self, other: u64) {
+                let other = Self::from_uint(<<#name as PrimeFieldParams>::Inner as From<u64>>::from(other))
+                    .expect("non-canonical input");
+                *self = self.wrapping_mul(other);
+            }
+        }
+
+        impl std::ops::Div for #name {
+            type Output = Self;
+
+            fn div(self, other: Self) -> Self {
+                self.wrapping_div(other)
+            }
+        }
+
+        impl std::ops::DivAssign for #name {
+            fn div_assign(&mut self, other: Self) {
+                *self = self.wrapping_div(other);
+            }
+        }
+
+        impl std::ops::Neg for #name {
+            type Output = Self;
+
+            fn neg(self) -> Self {
+                self.wrapping_neg()
+            }
+        }
+
+        impl std::str::FromStr for #name {
+            type Err = &'static str;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                let uint = <<#name as PrimeFieldParams>::Inner as std::str::FromStr>::from_str(s)?;
+                Self::from_uint(uint)
+                    .ok_or("non-canonical input")
+            }
+        }
+
+        impl From<&'static str> for #name {
+            fn from(s: &'static str) -> Self {
+                let uint = <<#name as PrimeFieldParams>::Inner as From<&'static str>>::from(s);
+                #name::from_uint(uint).expect("non-canonical input")
+            }
+        }
+
+        impl ::borsh::ser::BorshSerialize for #name {
+            fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+                let uint = self.to_uint();
+                uint.serialize(writer)
+            }
+        }
+
+        impl ::borsh::de::BorshDeserialize for #name {
+            fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
+                let uint = <<#name as PrimeFieldParams>::Inner as ::borsh::de::BorshDeserialize>::deserialize(buf)?;
+                Self::from_uint(uint)
+                    .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))
+            }
+        }
+
         /// Elements are ordered lexicographically.
         impl Ord for #name {
             #[inline(always)]

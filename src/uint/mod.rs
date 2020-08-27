@@ -268,6 +268,7 @@ macro_rules! construct_uint {
 				}
 				
 				$crate::impl_overflowing_unop!(Not, not, overflowing_not, $name);
+				$crate::impl_overflowing_unop!(Neg, neg, overflowing_neg, $name);
 
 				$crate::impl_overflowing_binop!(Add, add, overflowing_add, $name);
 				$crate::impl_overflowing_binop!(Sub, sub, overflowing_sub, $name);
