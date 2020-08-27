@@ -9,7 +9,7 @@
 use core::convert::TryInto;
 use core::str::FromStr;
 use core::u64::MAX;
-use ff_uint::{construct_uint, overflowing, Uint, construct_primefield_params, Field};
+use ff_uint::{construct_uint, overflowing, Uint, construct_primefield_params, Field, SqrtField, LegendreSymbol};
 
 
 
@@ -40,6 +40,147 @@ fn ff_test() {
 	println!("{}", c);
 }
 
+#[test]
+fn ff_add() {
+	let el_1 = Fs::from("1");
+	let el_2 = Fs::from("2");
+
+	assert_eq!(el_1 + el_2, Fs::from("3"));
+}
+
+#[test]
+fn ff_add_overflow() {
+	let el_1 = Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254198");
+	let el_2 = Fs::from("2");
+
+	assert_eq!(el_1 + el_2, Fs::from("1"));
+}
+
+#[test]
+fn ff_sub() {
+	let el_1 = Fs::from("3");
+	let el_2 = Fs::from("2");
+
+	assert_eq!(el_1 - el_2, Fs::from("1"));
+}
+
+#[test]
+fn ff_sub_overflow() {
+	let el_1 = Fs::from("1");
+	let el_2 = Fs::from("2");
+
+	assert_eq!(el_1 - el_2, Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254198"));
+}
+
+#[test]
+fn ff_mul() {
+	let el_1 = Fs::from("3");
+	let el_2 = Fs::from("4");
+
+	assert_eq!(el_1 * el_2, Fs::from("12"));
+}
+
+#[test]
+fn ff_mul_overflow() {
+	let el_1 = Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254198");
+	let el_2 = Fs::from("2");
+
+	assert_eq!(el_1 * el_2, Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254197"));
+}
+
+#[test]
+fn ff_div() {
+	let el_1 = Fs::from("6");
+	let el_2 = Fs::from("3");
+
+	assert_eq!(el_1 / el_2, Fs::from("2"));
+}
+
+#[test]
+fn ff_div_overflow() {
+	let el_1 = Fs::from("6");
+	let el_2 = Fs::from("4");
+
+	assert_eq!(
+		el_1 / el_2,
+		// 6 * modinv(4, MODULUS) % MODULUS
+		Fs::from("3277242198445386904965483781761622864852960632936158640682679581196091627101"),
+	);
+}
+
+#[test]
+fn ff_pow() {
+	let el = Fs::from("3");
+	let exp = U256::from("2");
+
+	assert_eq!(
+		el.pow(exp),
+		Fs::from("9"),
+	);
+}
+
+#[test]
+fn ff_pow_overflow() {
+	let el = Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254197");
+	let exp = U256::from("3");
+
+	assert_eq!(
+		el.pow(exp),
+		Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254191"),
+	);
+}
+
+#[test]
+fn ff_legendre_zero() {
+	let el = Fs::from("0");
+	assert_eq!(el.legendre(), LegendreSymbol::Zero);
+}
+
+#[test]
+fn ff_legendre_res() {
+	let el = Fs::from("1");
+	assert_eq!(el.legendre(), LegendreSymbol::QuadraticResidue);
+	let el = Fs::from("2");
+	assert_eq!(el.legendre(), LegendreSymbol::QuadraticResidue);
+}
+
+#[test]
+fn ff_legendre_non_res() {
+	let el = Fs::from("3");
+	assert_eq!(el.legendre(), LegendreSymbol::QuadraticNonResidue);
+}
+
+#[test]
+fn ff_sqrt() {
+	let el = Fs::from("4");
+	assert_eq!(el.sqrt(), Some(Fs::from("2")));
+}
+
+#[test]
+fn ff_sqrt_overflow() {
+	let el = Fs::from("2");
+	assert_eq!(el.sqrt(), Some(Fs::from("3674645774258780002595694408386856985546272770096338596677057829404746234284")));
+}
+
+#[test]
+fn ff_sqrt_none() {
+	let el = Fs::from("3");
+	assert_eq!(el.sqrt(), None);
+}
+
+#[test]
+fn ff_neg_zero() {
+	let el = Fs::from("0");
+	assert_eq!(-el, Fs::from("0"));
+}
+
+#[test]
+fn ff_neg_overflow() {
+	let el = Fs::from("1");
+	assert_eq!(-el, Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254198"));
+	let el = Fs::from("6554484396890773809930967563523245729705921265872317281365359162392183254198");
+	assert_eq!(-el, Fs::from("1"));
+}
 
 #[test]
 fn hash_impl_is_the_same_as_for_a_slice() {
