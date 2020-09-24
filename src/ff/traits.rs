@@ -52,6 +52,8 @@ pub trait Field :
     fn wrapping_add(self, other:Self) -> Self;
     fn wrapping_sub(self, other:Self) -> Self;
     fn wrapping_mul(self, other:Self) -> Self;
+
+    #[inline]
     fn wrapping_div(self, other:Self) -> Self {
         self.wrapping_mul(other.checked_inv().expect("Division by zero"))
     }
@@ -103,8 +105,9 @@ pub trait PrimeField:
     fn as_mont_uint(&self) -> &Self::Inner;
     fn as_mont_uint_mut(&mut self) -> &mut Self::Inner;
 
-    fn to_other<Fq:PrimeField<Inner=Self::Inner>>(&self) -> Option<Fq> {
-        let u = self.to_uint();
+    fn to_other<Fq:PrimeField>(&self) -> Option<Fq> {
+        let u = self.to_uint().to_other()?;
+        
         if u >= Fq::MODULUS {
             None
         } else {
@@ -112,9 +115,16 @@ pub trait PrimeField:
         }
     }
 
-    fn to_other_reduced<Fq:PrimeField<Inner=Self::Inner>>(&self) -> Fq {
-        let u = self.to_uint();
-        Fq::from_uint_unchecked(u % Fq::MODULUS)
+    fn to_other_reduced<Fq:PrimeField>(&self) -> Fq {
+        match self.to_uint().to_other::<Fq::Inner>() {
+            Some(u) => {
+                Fq::from_uint_unchecked(u % Fq::MODULUS)
+            },
+            None => {
+                let u = self.to_uint() % <Fq as PrimeFieldParams>::MODULUS.to_other().unwrap();
+                Fq::from_uint_unchecked(u.to_other().unwrap())
+            }
+        }
     }
     
 

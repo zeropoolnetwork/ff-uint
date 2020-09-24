@@ -1,34 +1,46 @@
+
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Rem, RemAssign, Neg, Shr, ShrAssign, Shl, ShlAssign, BitOr, BitOrAssign, BitAnd, BitAndAssign, BitXor, BitXorAssign, Not};
+use std::cmp::{PartialEq, Eq, PartialOrd, Ord};
+
+
 pub trait Uint: 
 	Sized + 
 	Clone + 
 	Copy + 
 	Default + 
-	std::cmp::PartialEq +
-	std::cmp::PartialOrd +
-	std::cmp::Eq +
-	std::cmp::Ord +
-	std::ops::Add<Self, Output=Self> +
-	std::ops::Sub<Self, Output=Self> +
-	std::ops::Mul<Self, Output=Self> +
-	std::ops::Mul<u64, Output=Self> +
-	std::ops::Div<Self, Output=Self> +
-	std::ops::Rem<Self, Output=Self> +
-	std::ops::Shl<u32, Output=Self> +
-	std::ops::Shr<u32, Output=Self> +
-	std::ops::AddAssign<Self> +
-	std::ops::SubAssign<Self> +
-	std::ops::MulAssign<Self> +
-	std::ops::MulAssign<u64> +
-	std::ops::DivAssign<Self> +
-	std::ops::RemAssign<Self> +
-	std::ops::Not<Output=Self> +
-	std::ops::BitAnd<Self, Output=Self> +
-	std::ops::BitOr<Self, Output=Self> +
-	std::ops::BitXor<Self, Output=Self> +
-	std::ops::BitAndAssign<Self> +
-	std::ops::BitOrAssign<Self> +
-	std::ops::ShlAssign<u32> +
-    std::ops::ShrAssign<u32> +
+    Add<Self, Output=Self> +
+    for<'a> Add<&'a Self, Output=Self> +
+    Sub<Self, Output=Self> +
+    for<'a> Sub<&'a Self, Output=Self> +
+    Mul<Self, Output=Self> +
+    for<'a> Mul<&'a Self, Output=Self> +
+	Div<Self, Output=Self> +
+	for<'a> Div<&'a Self, Output=Self> +
+	Neg<Output=Self> +
+	Rem<Self, Output=Self> +
+    //for<'a> Rem<&'a Self, Output=Self> +
+    Shl<u32, Output=Self> +
+    for<'a> Shl<&'a u32, Output=Self> +
+    Shr<u32, Output=Self> +
+	for<'a> Shr<&'a u32, Output=Self> +
+	AddAssign<Self> +
+    for<'a> AddAssign<&'a Self> +
+    SubAssign<Self> +
+    for<'a> SubAssign<&'a Self> +
+    MulAssign<Self> +
+    for<'a> MulAssign<&'a Self> +
+    DivAssign<Self> +
+    for<'a> DivAssign<&'a Self> +
+    PartialEq +
+	Eq +
+	RemAssign<Self> +
+    for<'a> RemAssign<&'a Self>  +
+    ShlAssign<u32> +
+    for<'a> ShlAssign<&'a u32> +
+    ShrAssign<u32> +
+    for<'a> ShrAssign<&'a u32> +
+    PartialOrd + 
+    Ord +
     From<bool> +
     From<u8> +
     From<u16> +
@@ -39,7 +51,8 @@ pub trait Uint:
     From<i16> +
     From<i32> +
     From<i64> +
-    From<i128> +
+	From<i128> +
+	std::convert::TryInto<bool> +
     std::convert::TryInto<u8> +
     std::convert::TryInto<u16> +
     std::convert::TryInto<u32> +
@@ -50,12 +63,32 @@ pub trait Uint:
     std::convert::TryInto<i32> +
     std::convert::TryInto<i64> +
 	std::convert::TryInto<i128> +
+	std::hash::Hash +
 	std::fmt::Debug +
 	std::fmt::Display +
 	std::str::FromStr +
+	std::fmt::LowerHex +
 	From<&'static str> +
     crate::borsh::BorshSerialize +
-    crate::borsh::BorshDeserialize
+	crate::borsh::BorshDeserialize +
+	crate::serde::Serialize +
+	for<'de> crate::serde::Deserialize<'de>
+	// where for<'a, 'b> &'b Self : Sized +  
+	// 	Add<Self, Output=Self> +
+	// 	Add<&'a Self, Output=Self> +
+	// 	Sub<Self, Output=Self> +
+	// 	Sub<&'a Self, Output=Self> +
+	// 	Mul<Self, Output=Self> +
+	// 	Mul<&'a Self, Output=Self> +
+	// 	Div<Self, Output=Self> +
+	// 	Div<&'a Self, Output=Self> +
+	// 	Neg<Output=Self> +
+	// 	Rem<Self, Output=Self> +
+	// 	Rem<&'a Self, Output=Self> +
+	// 	Shl<u32, Output=Self> +
+	// 	Shl<&'a u32, Output=Self> +
+	// 	Shr<u32, Output=Self> +
+	// 	Shr<&'a u32, Output=Self> +
 {
 	type Inner: AsMut<[u64]> + AsRef<[u64]> + Copy + Clone + Default + Sized;
 
@@ -127,20 +160,45 @@ pub trait Uint:
 	fn overflowing_shl(self, other: u32) -> (Self, bool);
 
 	#[inline]
-	fn overflowing_pow(self, other: Self) -> (Self, bool) {
-		if other.is_zero() { return (Self::ONE, false) }
-
+    fn overflowing_pow<S: BitIterBE>(self, exp: S) -> (Self, bool) {
 		let mut res = Self::ONE;
-		let mut overflow = false;
-
-		for i in (0..Self::NUM_WORDS*Self::WORD_BITS-other.leading_zeros() as usize).rev() {
-			res = overflowing!(res.overflowing_mul(res), overflow);
-			if other.bit(i) {
-				res = overflowing!(res.overflowing_mul(self), overflow);
-			}
-		}
-		(res, overflow)
+		let mut overflow: bool = false;
+        let mut found_one = false;
+        for i in exp.bit_iter_be() {
+            if found_one {
+                res = overflowing!(res.overflowing_mul(res), overflow);
+            } else {
+                found_one = i;
+            }
+            if i {
+                res = overflowing!(res.overflowing_mul(self), overflow);
+            }
+        }
+        (res, overflow)
 	}
+	
+	#[inline]
+	fn to_other<U: Uint>(self) -> Option<U> {
+		let mut res = U::default();
+		let res_inner = res.as_inner_mut().as_mut();
+		let res_inner_len = res_inner.len();
+
+		let self_inner = self.as_inner().as_ref();
+		let self_inner_len = self_inner.len();
+
+		let both_min = std::cmp::min(res_inner_len, self_inner_len);
+
+		res_inner[..both_min].copy_from_slice(&self_inner[..both_min]);
+
+		if self_inner[both_min..].iter().any(|&x| x!=0) {
+			None
+		} else {
+			Some(res)
+		}
+	}
+
+	fn wrapping_cmp(&self, other: &Self) -> std::cmp::Ordering;
+
 
 	#[inline]
 	fn wrapping_pow(self, other: Self) -> Self {
@@ -386,7 +444,6 @@ impl<I:Uint> BitIterBE for I {
 		}
 	}
 } 
-
 
 
 

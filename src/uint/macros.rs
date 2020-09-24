@@ -277,6 +277,105 @@ macro_rules! impl_overflowing_assignop{
 
 #[macro_export]
 #[doc(hidden)]
+macro_rules! impl_wrapping_binop{
+    ($op: ident, $method:ident, $wrapping_op: ident, $name: ty) => {
+        $crate::impl_wrapping_binop!($op, $method, $wrapping_op, $name, $name);
+    };
+
+	($op: ident, $method:ident, $wrapping_op: ident, $name: ty, $other: ty) => {
+		impl std::ops::$op<$other> for $name {
+			type Output = $name;
+
+            #[inline]
+			fn $method(self, other: $other) -> Self::Output {
+                self.$wrapping_op(other)
+            }       
+        }
+
+		impl<'a> std::ops::$op<&'a $other> for $name {
+			type Output = $name;
+
+            #[inline]
+			fn $method(self, other: &'a $other) -> Self::Output {
+                self.$wrapping_op(*other)
+            }       
+        }   
+    
+		impl<'a> std::ops::$op<$other> for &'a $name {
+			type Output = $name;
+
+            #[inline]
+			fn $method(self, other: $other) -> Self::Output {
+                (*self).$wrapping_op(other)
+            }       
+        }
+
+		impl<'a, 'b> std::ops::$op<&'a $other> for &'b $name {
+			type Output = $name;
+
+            #[inline]
+			fn $method(self, other: &'a $other) -> Self::Output {
+                (*self).$wrapping_op(*other)
+            }       
+        }
+	};
+}
+
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! impl_wrapping_unop {
+	($op: ident, $method:ident, $wrapping_op: ident, $name: ty) => {
+        impl std::ops::$op for $name {
+            type Output = $name;
+            #[inline]
+            fn $method(self) -> $name {
+                self.$wrapping_op()
+            }
+        }
+
+        impl<'a> std::ops::$op for &'a $name {
+            type Output = $name;
+            #[inline]
+            fn $method(self) -> $name {
+                (*self).$wrapping_op()
+            }
+        }
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! impl_wrapping_assignop{
+    ($op: ident, $method:ident, $wrapping_op: ident, $name: ty) => {
+        $crate::impl_wrapping_assignop!($op, $method, $wrapping_op, $name, $name);
+    };
+
+
+	($op: ident, $method:ident, $wrapping_op: ident, $name: ty, $other: ty) => {
+		impl std::ops::$op<$other> for $name {
+            #[inline]
+			fn $method(&mut self, other: $other) {
+                *self = (*self).$wrapping_op(other);
+            }       
+        }
+
+		impl<'a> std::ops::$op<&'a $other> for $name {
+            #[inline]
+			fn $method(&mut self, other: &'a $other) {
+                *self = (*self).$wrapping_op(*other);
+            }       
+        }   
+    };
+}
+
+
+
+
+
+
+#[macro_export]
+#[doc(hidden)]
 macro_rules! impl_map_from {
 	($thing:ident, $from:ty, $to:ty) => {
 		impl From<$from> for $thing {

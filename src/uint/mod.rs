@@ -11,11 +11,28 @@ macro_rules! construct_uint {
 				use $crate::unroll;
 				use $crate::Uint;
 				use $crate::borsh::{BorshSerialize, BorshDeserialize};
+				use $crate::serde::{Serialize, Serializer, Deserialize, Deserializer, de};
 
 				#[repr(C)]
 				$(#[$attr])*
 				#[derive(Copy, Clone, Default, BorshSerialize, BorshDeserialize)]
 				pub struct $name (pub [u64; $n_words]);
+
+
+				impl Serialize for $name {
+					fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>{
+						Serialize::serialize(&self.to_string(), serializer)
+					}
+				}
+
+				
+				
+				impl<'de> Deserialize<'de> for $name {
+					fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+						std::str::FromStr::from_str(&<String as Deserialize>::deserialize(deserializer)?).map_err(|_| de::Error::custom("Wrong number format"))
+					}
+				}
+				
 
 				#[inline]
 				const fn uint_from_u64(v:u64) -> $name {
@@ -310,6 +327,20 @@ macro_rules! construct_uint {
 				$crate::impl_map_from!($name, isize, i64);
 		
 		
+				impl std::convert::TryFrom<$name> for bool {
+					type Error = &'static str;
+		
+					#[inline]
+					fn try_from(u: $name) -> std::result::Result<bool, &'static str> {
+						let $name(arr) = u;
+						if !u.fits_word() || arr[0] > 2 {
+							Err("integer overflow when casting to bool",)
+						} else {
+							Ok(arr[0] == 1)
+						}
+					}
+				}
+				
 				$crate::impl_try_from_for_primitive!($name, u8);
 				$crate::impl_try_from_for_primitive!($name, u16);
 				$crate::impl_try_from_for_primitive!($name, u32);
@@ -328,16 +359,7 @@ macro_rules! construct_uint {
 				impl std::cmp::Ord for $name {
 					#[inline]
 					fn cmp(&self, other: &$name) -> std::cmp::Ordering {
-						let &$name(ref a) = self;
-						let &$name(ref b) = other;
-						let mut i = $n_words;
-
-						for i in (0 .. $n_words).rev() {
-							if a[i] < b[i] { return std::cmp::Ordering::Less; }
-							if a[i] > b[i] { return std::cmp::Ordering::Greater; }
-						}
-						
-						std::cmp::Ordering::Equal
+						self.wrapping_cmp(other)
 					}
 				}
 		
@@ -823,6 +845,22 @@ macro_rules! construct_uint {
 		
 						$name(ret)
 					}
+
+					#[inline]
+					fn wrapping_cmp(&self, other: &$name) -> std::cmp::Ordering {
+						let &$name(ref a) = self;
+						let &$name(ref b) = other;
+						let mut i = $n_words;
+
+						for i in (0 .. $n_words).rev() {
+							if a[i] < b[i] { return std::cmp::Ordering::Less; }
+							if a[i] > b[i] { return std::cmp::Ordering::Greater; }
+						}
+						
+						std::cmp::Ordering::Equal
+					}
+
+
 				}
 			}
 		});
